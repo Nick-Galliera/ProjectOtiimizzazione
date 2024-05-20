@@ -4,16 +4,20 @@ model ModelName
 
   parameters
     n = 4                               ! numero di jobs
-    m = 5                               ! numero di tools
+    m = 8                               ! numero di tools
+    B = 4                               ! max numero tool
   end-parameters
 
+  forward procedure printParams
+  forward procedure printResults
+
   declarations
+
     J = 1..n                            ! insieme dei Jobs
     J0 = J + {0}                        ! insieme dei Jobs U {0}
-    J0_i = J0                           ! insieme dei Jobs - {i} [TODO: per ogni utilizzo]
 
     T = 1..m                            ! insieme dei Tools
-    T_j : array(J) of set of integer    ! array di insiemi di Tools necessari per il Job j
+    T_j : array(J0) of set of integer    ! array di insiemi di Tools necessari per il Job j
 
     Tc_m : array(T) of integer          ! costi di montaggio tool t
     Tc_s : array(T) of integer          ! costi di smontaggio tool t
@@ -23,27 +27,112 @@ model ModelName
     y_ij_m : array(J0, J0, T) of mpvar  ! 1 se tool 't' viene lasciato nel passaggio i->j [TODO: controllare grandeza T]
 
     mintime : linctr
+
+    TestA, TestB : set of integer
+    M_intersection : set of integer
+
   end-declarations
 
-  Tc_m :: [3, 4, 2, 5, 7]
-  Tc_s :: [6, 4, 2, 8, 2]
+  !************** assignement *************! TODO: externa file assignment
 
-  T_j :: [{1, 3, 4, 8} ,{4, 3, 2}, {3, 5, 2, 1}, {2, 4, 7}]
+  TestA := {1,2,5,7}
+  TestB := {3,2,1,4}
 
-  ! Riassunto dati iniziali problema
-  write("\n- Insieme dei Jobs 'J': ")
-    forall(j in J)
-      write(j, " ")
-  write("\n- Insieme dei Jobs 'J0': ")
-    forall(j in J0)
-      write(j, " ")
-  write("\n- Insieme dei Tools per:")
+  Tc_m :: [3, 4, 2, 5, 7, 3, 2, 6]
+  Tc_s :: [6, 4, 2, 8, 2, 4, 5, 3]
+
+  T_j :: [{1, 3, 4, 7} ,{4, 3, 2}, {3, 5, 2, 1}, {2, 4, 7}]
+
+  printParams
+
+  !************** constraints *************!
+
+  mintime := sum(i,j in J0 | i<>j)((sum(t in T)( z_ij_m(i,j,m)*(Tc_m(t)+Tc_s(t)))))
+
+  forall(i,j in J0)
+    x_ij(i,j) is_binary
+  forall(i,j in J0, t in T)
+    z_ij_m(i,j,t) is_binary
+  forall(i,j in J0, t in T)
+    y_ij_m(i,j,t) is_binary
+
+  !impone 1 solo 1 su ogni colonna
+  forall(i in J0)
+    (sum(j in J0 | j<>i) x_ij(i,j) = 1)
+
+  !impone 1 solo 1 su ogni riga
+  forall(j in J0)
+    (sum(i in J0 | j<>i) x_ij(i,j) = 1)
+
+  !impone Sobtour Elimination Constraints TODO: guardare
   forall(j in J)
-    write("\n\tJob ", j, ": ", T_j(j))
-  write("\n- Costi di montaggio:")
-  forall(t in T)
-    write("\n\tTool ", t, ": ", Tc_m(t))
-  write("\n- Costi di smontaggio:")
-  forall(t in T)
-    write("\n\tTool ", t, ": ", Tc_s(t))
+    (sum(i in J | i<>j) x_ij(i,j) <= n-1)
+
+  !impone che ogni tool se non è aggiunto è trasportato
+  forall(j in J0, t in T_j(j))
+    (sum(i in J0 | i<>j)(y_ij_m(i,j,t) + z_ij_m(i,j,t)) = 1)
+
+  forall(i,j in J0, t in T | i<> j)
+    (y_ij_m(i,j,t) + z_ij_m(i,j,t) <= x_ij(i,j))
+
+  forall(i,j in J0 | i<>j)
+    (sum(t in T)(y_ij_m(i,j,t) + z_ij_m(i,j,t)) <= x_ij(i,j)*B)
+
+  forall(i in J0, t in T)
+    ((sum(k in J0 | k<>i)(y_ij_m(k,i,t) + z_ij_m(k,i,t))) >= (sum(j in J0 | i<>j)y_ij_m(i,j,t)))
+
+  (!
+  TestA := {1,2,5,7}
+  TestB := {3,2,1,4}
+
+  write("\nintersection: ")
+  forall(i in TestA | i in TestB)write(i," ")
+  !)
+
+  minimize(XPRS_LIN, mintime)
+
+
+  !************** procedures *************!
+
+  procedure printParams
+    write("\n- Insieme dei Jobs 'J': ")
+      forall(j in J)
+        write(j, " ")
+
+    write("\n- Insieme dei Jobs 'J0': ")
+      forall(j in J0)
+        write(j, " ")
+
+    write("\n- Insieme dei Tools per:")
+    forall(j in J0)
+      write("\n\tJob ", j, ": ", T_j(j))
+
+    write("\n- Costi di montaggio:")
+    forall(t in T)
+      write("\n\tTool ", t, ": ", Tc_m(t))
+
+    write("\n- Costi di smontaggio:")
+    forall(t in T)
+      write("\n\tTool ", t, ": ", Tc_s(t))
+  end-procedure
+
+
+  procedure printResults
+    forall(i in J0) do
+      write("\n")
+      forall(j in J0)
+        write(getsol(x_ij(i,j)))
+    end-do
+
+    write("\ny:")
+    forall(t in T) do
+      write(getsol(y_ij_m(2,3,t)))
+    end-do
+
+    write("\nz:")
+    forall(t in T) do
+      write(getsol(z_ij_m(2,3,t)))
+    end-do
+  end-procedure
+
 end-model

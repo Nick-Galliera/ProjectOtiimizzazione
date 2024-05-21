@@ -23,38 +23,36 @@ model ModelName
     Tc_s : array(T) of integer          ! costi di smontaggio tool t
 
     x_ij : array(J0, J0) of mpvar       ! 1 se job 'j' segue immediatamente job 'i' - 0 altrimenti
-    z_ij_m : array(J0, J0, T) of mpvar  ! 1 se tool 't' viene aggiunto nel passaggio i->j [TODO: controllare grandeza T]
-    y_ij_m : array(J0, J0, T) of mpvar  ! 1 se tool 't' viene lasciato nel passaggio i->j [TODO: controllare grandeza T]
+    z_ij_t : array(J0, J0, T) of mpvar  ! 1 se tool 't' viene aggiunto nel passaggio i->j [TODO: controllare grandeza T]
+    y_ij_t : array(J0, J0, T) of mpvar  ! 1 se tool 't' viene lasciato nel passaggio i->j [TODO: controllare grandeza T]
+
+    u : array(J0) of mpvar              ! array contenete ordinamento posizionale Jobs
 
     mintime : linctr
-
-    TestA, TestB : set of integer
-    M_intersection : set of integer
 
   end-declarations
 
   !************** assignement *************! TODO: externa file assignment
 
-  TestA := {1,2,5,7}
-  TestB := {3,2,1,4}
+  !Tc_m :: [3, 4, 2, 5, 7, 3, 2, 6]
+  !Tc_s :: [6, 4, 2, 8, 2, 4, 5, 3]
+  Tc_m :: [1,1,1,1,1,1,1,1]
+  Tc_s :: [1,1,1,1,1,1,1,1]
 
-  Tc_m :: [3, 4, 2, 5, 7, 3, 2, 6]
-  Tc_s :: [6, 4, 2, 8, 2, 4, 5, 3]
-
-  T_j :: [{1, 3, 4, 7} ,{4, 3, 2}, {3, 5, 2, 1}, {2, 4, 7}]
+  T_j :: [{2, 4, 3, 5} ,{4, 3, 1}, {1, 2, 3, 7}, {3}]
 
   printParams
 
   !************** constraints *************!
 
-  mintime := sum(i,j in J0 | i<>j)((sum(t in T)( z_ij_m(i,j,m)*(Tc_m(t)+Tc_s(t)))))
+  mintime := sum(i,j in J0 | i<>j)((sum(t in T)( z_ij_t(i,j,m)*(Tc_m(t)+Tc_s(t)))))
 
   forall(i,j in J0)
     x_ij(i,j) is_binary
   forall(i,j in J0, t in T)
-    z_ij_m(i,j,t) is_binary
+    z_ij_t(i,j,t) is_binary
   forall(i,j in J0, t in T)
-    y_ij_m(i,j,t) is_binary
+    y_ij_t(i,j,t) is_binary
 
   !impone 1 solo 1 su ogni colonna
   forall(i in J0)
@@ -65,32 +63,37 @@ model ModelName
     (sum(i in J0 | j<>i) x_ij(i,j) = 1)
 
   !impone Sobtour Elimination Constraints TODO: guardare
-  forall(j in J)
-    (sum(i in J | i<>j) x_ij(i,j) <= n-1)
+  forall(i in J0 | i>1)
+    u(i) >= 0
+
+  u(0) = 0
+
+  forall(i in J0, j in J | i<>j) !TODO aggiungere i!=j
+    (u(i) - u(j) + n*x_ij(i,j) <= n-1)
+
 
   !impone che ogni tool se non è aggiunto è trasportato
   forall(j in J0, t in T_j(j))
-    (sum(i in J0 | i<>j)(y_ij_m(i,j,t) + z_ij_m(i,j,t)) = 1)
+    (sum(i in J0 | i<>j)(y_ij_t(i,j,t) + z_ij_t(i,j,t)) = 1)
 
   forall(i,j in J0, t in T | i<> j)
-    (y_ij_m(i,j,t) + z_ij_m(i,j,t) <= x_ij(i,j))
+    (y_ij_t(i,j,t) + z_ij_t(i,j,t) <= x_ij(i,j))
 
   forall(i,j in J0 | i<>j)
-    (sum(t in T)(y_ij_m(i,j,t) + z_ij_m(i,j,t)) <= x_ij(i,j)*B)
+    (sum(t in T)(y_ij_t(i,j,t) + z_ij_t(i,j,t)) <= x_ij(i,j)*B)
 
   forall(i in J0, t in T)
-    ((sum(k in J0 | k<>i)(y_ij_m(k,i,t) + z_ij_m(k,i,t))) >= (sum(j in J0 | i<>j)y_ij_m(i,j,t)))
+    ((sum(k in J0 | k<>i)(y_ij_t(k,i,t) + z_ij_t(k,i,t))) >= (sum(j in J0 | i<>j)y_ij_t(i,j,t)))
 
-  (!
-  TestA := {1,2,5,7}
-  TestB := {3,2,1,4}
+  forall(i,j in J0 | i<>j, t in T_j(i) | t in T_j(j))
+    (y_ij_t(i,j,t) >= x_ij(i,j))
 
-  write("\nintersection: ")
-  forall(i in TestA | i in TestB)write(i," ")
-  !)
+  forall(i,j in J0 | i<>j, t in T | t not in T_j(j))
+    (z_ij_t(i,j,t) = 0)
 
-  minimize(XPRS_LIN, mintime)
+  minimize(mintime)
 
+  printResults
 
   !************** procedures *************!
 
@@ -118,21 +121,22 @@ model ModelName
 
 
   procedure printResults
+  
     forall(i in J0) do
       write("\n")
       forall(j in J0)
         write(getsol(x_ij(i,j)))
     end-do
 
-    write("\ny:")
-    forall(t in T) do
-      write(getsol(y_ij_m(2,3,t)))
+
+    write("\nJobs sequence:\n")
+    forall(i in J0) do
+      write(getsol(u(i)))
+      if i<n then
+        write(" -> ")
+      end-if
     end-do
 
-    write("\nz:")
-    forall(t in T) do
-      write(getsol(z_ij_m(2,3,t)))
-    end-do
   end-procedure
 
 end-model

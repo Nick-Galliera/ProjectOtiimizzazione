@@ -5,7 +5,7 @@ model ModelName
   parameters
     n = 4                               ! numero di jobs
     m = 8                               ! numero di tools
-    B = 4                               ! max numero tool
+    B = 3                               ! max numero tool su macchina
   end-parameters
 
   forward procedure printParams
@@ -29,6 +29,10 @@ model ModelName
     u : array(J0) of mpvar              ! array contenete ordinamento posizionale Jobs
 
     mintime : linctr
+
+    Job_seq : array(J0) of integer      ! var per print solution
+    cur_job : integer                   ! var per print solution
+    seq : integer                       ! var per print solution
 
   end-declarations
 
@@ -63,12 +67,12 @@ model ModelName
 
   ! Vincoli di flusso: garantiscono che ogni nodo venga visitato esattamente una volta
   forall(i in J0)
-    (sum(j in J0 | j<>i) x_ij(i,j) = 1)
+    (sum(j in J0-{i})x_ij(i,j) = 1)
 
   forall(j in J0)
-    (sum(i in J0 | j<>i) x_ij(i,j) = 1)
+    (sum(i in J0-{j})x_ij(i,j) = 1)
 
-  ! Vincolo di eliminazione dei sottotour: evita la formazione di sottotour + vincolo di diminio
+  ! Vincolo di eliminazione dei sottotour: evita la formazione di sottotour + vincolo di dominio
   u(0) = 0
 
   forall(i,j in J | i<>j)
@@ -79,22 +83,27 @@ model ModelName
     u(i) <= n
   end-do
 
-  !impone che ogni tool se non è aggiunto è trasportato
+  !TODO: etichettare 3e
   forall(j in J0, t in T_j(j))
-    (sum(i in J0 | i<>j)(y_ij_t(i,j,t) + z_ij_t(i,j,t)) = 1)
+    (sum(i in J0-{j})(y_ij_t(i,j,t) + z_ij_t(i,j,t)) = 1)
 
-  forall(i,j in J0, t in T | i<> j)
+  !TODO: etichettare 3f
+  forall(i,j in J0 | i<>j, t in T | t not in T_j(i) and t in T_j(j))
     (y_ij_t(i,j,t) + z_ij_t(i,j,t) <= x_ij(i,j))
 
+  !TODO: etichettare 3g
   forall(i,j in J0 | i<>j)
     (sum(t in T)(y_ij_t(i,j,t) + z_ij_t(i,j,t)) <= x_ij(i,j)*B)
 
+  !TODO etichettare 3h
   forall(i in J0, t in T)
-    ((sum(k in J0 | k<>i)(y_ij_t(k,i,t) + z_ij_t(k,i,t))) >= (sum(j in J0 | i<>j)y_ij_t(i,j,t)))
+    ((sum(k in J0-{i})(y_ij_t(k,i,t) + z_ij_t(k,i,t))) >= (sum(j in J0-{i})y_ij_t(i,j,t)))
 
+  !TODO etichettare 3i
   forall(i,j in J0 | i<>j, t in T_j(i) | t in T_j(j))
     (y_ij_t(i,j,t) >= x_ij(i,j))
 
+  !TODO etichettare 3j
   forall(i,j in J0 | i<>j, t in T | t not in T_j(j))
     (z_ij_t(i,j,t) = 0)
 
@@ -105,6 +114,7 @@ model ModelName
   !************** procedures *************!
 
   procedure printParams
+    write("\n")
     write("\n- Insieme dei Jobs 'J': ")
       forall(j in J)
         write(j, " ")
@@ -128,20 +138,36 @@ model ModelName
 
 
   procedure printResults
-    (!
+    write("\n")
+
     ! Print matrice x_ij
     forall(i in J0) do
       write("\n")
       forall(j in J0)
         write(getsol(x_ij(i,j)))
     end-do
-    !)
-    ! Print Job Sequence
-    write("\n- Jobs sequence:\n\t")
+
+    ! Print sequenza Job sotto forma di vettore
+    cur_job := 0
+    seq := 0
+    Job_seq(seq) := cur_job
+    seq := 1
+    forall(i in 0..n-1) do
+      forall(j in 0..n) do
+        if getsol(x_ij(cur_job,j)) > 0 then
+          cur_job := j
+          Job_seq(seq) := j
+          seq := seq+1
+          break
+        end-if
+      end-do
+
+    end-do
+    write("\n - Job sequence:\n\t")
     forall(i in J0) do
-      write(getsol(u(i)))
+      write(Job_seq(i))
       if i<n then
-        write(" -> ")
+        write("->")
       end-if
     end-do
 

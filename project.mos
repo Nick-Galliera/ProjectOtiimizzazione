@@ -30,13 +30,13 @@ model ModelName
 
     mintime : linctr
 
-    Job_seq : array(J0) of integer      ! var per print solution
-    cur_job : integer                   ! var per print solution
-    seq : integer                       ! var per print solution
+    Job_seq : array(J0) of integer      ! aux var per print solution
+    cur_job : integer                   ! aux var per print solution
+    seq : integer                       ! aux var per print solution
 
   end-declarations
 
-  !************** assignement *************! TODO: externa file assignment
+  !************** assignement *************! TODO: external file assignment
 
   !Tc_m :: [3, 4, 2, 5, 7, 3, 2, 6]
   !Tc_s :: [6, 4, 2, 8, 2, 4, 5, 3]
@@ -44,10 +44,10 @@ model ModelName
   Tc_s :: [1,1,1,1,1,1,1,1]
 
   T_j(0) := {}
-  T_j(1) := {3,4,5}
-  T_j(2) := {1,2}
-  T_j(3) := {1}
-  T_j(4) := {3,4}
+  T_j(1) := {1}
+  T_j(2) := {1,4,8}
+  T_j(3) := {3,4,7}
+  T_j(4) := {3,2,8}
 
   !T_j :: [{2, 4, 3, 5} ,{4, 3, 1}, {1, 2, 3, 7}, {3}]
 
@@ -55,7 +55,8 @@ model ModelName
 
   !************** constraints *************!
 
-  mintime := sum(i,j in J0 | i<>j)(sum(t in T_j(j))(z_ij_t(i,j,t)*(Tc_m(t)+Tc_s(t))))
+  !mintime := sum(i,j in J0 | i<>j)(sum(t in T_j(j))(z_ij_t(i,j,t)*(Tc_m(t)+Tc_s(t))))
+  mintime := sum(i,j in J0 | i<>j)(sum(t in T_j(j))(z_ij_t(i,j,t)))
 
   ! vincoli su variabili binarie
   forall(i,j in J0)
@@ -141,12 +142,13 @@ model ModelName
     write("\n")
 
     ! Print matrice x_ij
+    (!
     forall(i in J0) do
       write("\n")
       forall(j in J0)
         write(getsol(x_ij(i,j)))
     end-do
-
+    !)
     ! Print sequenza Job sotto forma di vettore
     cur_job := 0
     seq := 0
@@ -170,9 +172,15 @@ model ModelName
         write("->")
       end-if
     end-do
-
+  
+    write("\n- Tool sequence:\n")
+    forall(i in J0) do
+      write("\t")
+      write("J",Job_seq(i),": ",T_j(Job_seq(i))) 
+      write("\n")
+    end-do
     ! Print mintime solution
-    write("\n- mintime: ",getobjval)
+    write("- mintime: ",getobjval)
   end-procedure
 
 end-model

@@ -14,9 +14,9 @@ model ModelName
   declarations
 
     J = 1..n                            ! insieme dei Jobs
-    J0 = J + {0}                        ! insieme dei Jobs U {0}
+    J0 = 0..n                           ! insieme dei Jobs U {0}
 
-    T = 1..m                            ! insieme dei Tools
+    T = 0..m                            ! insieme dei Tools
     T_j : array(J0) of set of integer   ! array di insiemi di Tools necessari per il Job j
 
     Tc_m : array(T) of integer          ! costi di montaggio tool t
@@ -43,12 +43,26 @@ model ModelName
   Tc_m :: [1,1,1,1,1,1,1,1]
   Tc_s :: [1,1,1,1,1,1,1,1]
 
+  (!
   T_j(0) := {}
-  T_j(1) := {1}
-  T_j(2) := {1,4,8}
-  T_j(3) := {3,4,7}
-  T_j(4) := {3,2,8}
-
+  T_j(1) := {1,4,8,9}
+  T_j(2) := {1,3,5}
+  T_j(3) := {2,6,7,8}
+  T_j(4) := {1,5,7,9}
+  T_j(5) := {3,5,8}
+  T_j(6) := {1,2,4}
+  T_j(7) := {1}
+  T_j(8) := {6}
+  T_j(9) := {3}
+  T_j(10) := {5,7}
+  !)
+  
+  T_j(0) := {}
+  T_j(1) := {1,2}
+  T_j(2) := {3,4,5}
+  T_j(3) := {1,2}
+  T_j(4) := {3,4,6}
+  
   !T_j :: [{2, 4, 3, 5} ,{4, 3, 1}, {1, 2, 3, 7}, {3}]
 
   printParams
@@ -56,28 +70,29 @@ model ModelName
   !************** constraints *************!
 
   !mintime := sum(i,j in J0 | i<>j)(sum(t in T_j(j))(z_ij_t(i,j,t)*(Tc_m(t)+Tc_s(t))))
-  mintime := sum(i,j in J0 | i<>j)(sum(t in T_j(j))(z_ij_t(i,j,t)))
+  mintime := sum(i,j in J0 | i<>j)sum(t in T_j(j))z_ij_t(i,j,t)
 
   ! vincoli su variabili binarie
-  forall(i,j in J0)
+  forall(i,j in J0 | i<>j)
     x_ij(i,j) is_binary
-  forall(i,j in J0, t in T)
+
+  forall(i,j in J0 | i<>j, t in T) do
     z_ij_t(i,j,t) is_binary
-  forall(i,j in J0, t in T)
     y_ij_t(i,j,t) is_binary
+  end-do
 
   ! Vincoli di flusso: garantiscono che ogni nodo venga visitato esattamente una volta
   forall(i in J0)
-    (sum(j in J0-{i})x_ij(i,j) = 1)
+    sum(j in J0-{i})x_ij(i,j) = 1
 
   forall(j in J0)
-    (sum(i in J0-{j})x_ij(i,j) = 1)
+    sum(i in J0-{j})x_ij(i,j) = 1
 
   ! Vincolo di eliminazione dei sottotour: evita la formazione di sottotour + vincolo di dominio
   u(0) = 0
 
   forall(i,j in J | i<>j)
-    (u(i) - u(j) + n*x_ij(i,j) <= n-1)
+    u(i) - u(j) + n*x_ij(i,j) <= n-1
 
   forall(i in J) do
     u(i) >= 1
@@ -86,31 +101,46 @@ model ModelName
 
   !TODO: etichettare 3e
   forall(j in J0, t in T_j(j))
-    (sum(i in J0-{j})(y_ij_t(i,j,t) + z_ij_t(i,j,t)) = 1)
+    sum(i in J0-{j})(y_ij_t(i,j,t) + z_ij_t(i,j,t)) = 1
 
   !TODO: etichettare 3f
+  (!
   forall(i,j in J0 | i<>j, t in T | t not in T_j(i) and t in T_j(j))
-    (y_ij_t(i,j,t) + z_ij_t(i,j,t) <= x_ij(i,j))
-
+    y_ij_t(i,j,t) + z_ij_t(i,j,t) <= x_ij(i,j)
+  !)
+  forall(i,j in J0 | i<>j, t in T-{0} | t not in T_j(i) and t in T_j(j))
+    y_ij_t(i,j,t) + z_ij_t(i,j,t) = x_ij(i,j)
+    
+  forall(i,j in J0 | i<>j, t in T-{0} | t in T_j(i) and t in T_j(j))
+    y_ij_t(i,j,t) = x_ij(i,j)
+  
+  forall(i,j in J0 | i<>j, t in T | t not in T_j(j))
+    y_ij_t(i,j,t) <= x_ij(i,j)
+  
+  
   !TODO: etichettare 3g
   forall(i,j in J0 | i<>j)
-    (sum(t in T)(y_ij_t(i,j,t) + z_ij_t(i,j,t)) <= x_ij(i,j)*B)
+    sum(t in T)(y_ij_t(i,j,t) + z_ij_t(i,j,t)) <= B*x_ij(i,j)
 
   !TODO etichettare 3h
-  forall(i in J0, t in T)
-    ((sum(k in J0-{i})(y_ij_t(k,i,t) + z_ij_t(k,i,t))) >= (sum(j in J0-{i})y_ij_t(i,j,t)))
+  forall(i in J0, t in T-{0})
+    sum(k in J0-{i})(y_ij_t(k,i,t) + z_ij_t(k,i,t)) >= sum(j in J0-{i})y_ij_t(i,j,t)
 
   !TODO etichettare 3i
   forall(i,j in J0 | i<>j, t in T_j(i) | t in T_j(j))
-    (y_ij_t(i,j,t) >= x_ij(i,j))
+    y_ij_t(i,j,t) >= x_ij(i,j)
 
   !TODO etichettare 3j
-  forall(i,j in J0 | i<>j, t in T | t not in T_j(j))
-    (z_ij_t(i,j,t) = 0)
+  forall(i,j in J0 | i<>j, t in T-{0} | t not in T_j(j))
+    z_ij_t(i,j,t) = 0
 
+  !TODO etichettare 3k
+  forall(j in J, t in T-{0})
+    y_ij_t(0,j,t) = 0
+    
   minimize(mintime)
 
-  printResults
+ printResults
 
   !************** procedures *************!
 
@@ -172,15 +202,16 @@ model ModelName
         write("->")
       end-if
     end-do
-  
+
     write("\n- Tool sequence:\n")
     forall(i in J0) do
       write("\t")
-      write("J",Job_seq(i),": ",T_j(Job_seq(i))) 
+      write("J",Job_seq(i),": ",T_j(Job_seq(i)))
       write("\n")
     end-do
     ! Print mintime solution
     write("- mintime: ",getobjval)
   end-procedure
+
 
 end-model

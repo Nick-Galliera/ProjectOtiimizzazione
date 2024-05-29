@@ -1,16 +1,26 @@
 model ModelName
   options noimplicit
   uses "mmxprs"
-
-  parameters
-    n = 10                              ! numero di jobs
-    m = 9                               ! numero di tools
-    B = 4                               ! max numero tool su macchina
-  end-parameters
-
+  
   forward procedure printParams
   forward procedure printResults
-
+  
+  !********* initialization & declaration *********! 
+  
+  declarations
+  
+    n : integer                                ! numero di jobs
+    m : integer                                ! numero di tools
+    B : integer                               ! max numero tool su macchina
+    
+  end-declarations
+  
+  initialisations from "data.dat"
+    n
+    m
+    B
+  end-initialisations
+  
   declarations
 
     J = 1..n                            ! insieme dei Jobs
@@ -35,8 +45,6 @@ model ModelName
     seq : integer                       ! aux var per print solution
 
   end-declarations
-
-  !************** assignement *************! TODO: external file assignment
 
   initialisations from "data.dat"
     T_j

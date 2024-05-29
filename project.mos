@@ -38,35 +38,14 @@ model ModelName
 
   !************** assignement *************! TODO: external file assignment
 
-  Tc_m :: [0, 3, 4, 2, 5, 7, 3, 2, 6, 5]
-  Tc_s :: [0, 6, 4, 2, 8, 2, 4, 5, 3, 2]
-  
-  !Tc_m :: [0,1,1,1,1,1,1,1,1,1]
-  !Tc_s :: [0,1,1,1,1,1,1,1,1,1]
-
-
-  T_j(0) := {}
-  T_j(1) := {1,4,8,9}
-  T_j(2) := {1,3,5}
-  T_j(3) := {2,6,7,8}
-  T_j(4) := {1,5,7,9}
-  T_j(5) := {3,5,8}
-  T_j(6) := {1,2,4}
-  T_j(7) := {1}
-  T_j(8) := {6}
-  T_j(9) := {3}
-  T_j(10) := {5,7}
-
-  (!
-  T_j(0) := {}
-  T_j(1) := {1,2,3}
-  T_j(2) := {4}
-  T_j(3) := {4,5}
-  T_j(4) := {2,3,5}
-  !)
+  initialisations from "data.dat"
+    T_j
+    Tc_m
+    Tc_s
+  end-initialisations
 
   printParams
-
+  
   !************** constraints *************!
 
   mintime := sum(i,j in J0 | i<>j)(sum(t in T_j(j))(z_ij_t(i,j,t)*(Tc_m(t)+Tc_s(t))))
